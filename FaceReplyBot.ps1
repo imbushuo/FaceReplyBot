@@ -1,4 +1,5 @@
-﻿$BotToken = "156154272:AAFTmKaVhpaqz59yQ8l2lhamMR9mdvs38KE";
+﻿$BotToken = "156154272:AAFTmKaVhpaqz59yQ8l2lhamMR9mdvs38KE"; #This token 
+has been revoked.
 $timeoutSecs = 20
 $replyMap = @{ "🌚"="🌝"; "🌝"="🌚"; "→_→"="←_←"; "←_←"="→_→"; "#NSFW"="噫"}
 $global:lastReplyTimes=@{}
