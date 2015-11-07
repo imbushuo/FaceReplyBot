@@ -1,45 +1,76 @@
-﻿$BotToken = "156154272:AAFTmKaVhpaqz59yQ8l2lhamMR9mdvs38KE"; #This token has been revoked.
-$timeoutSecs = 20
+﻿Param([string]$ConfigFile)
+if (!$ConfigFile)
+{
+    $global:config = Get-Content "$($PSScriptRoot)\config.json" -Raw | ConvertFrom-Json
+}
+else
+{
+    $global:config = Get-Content $ConfigFile -Raw | ConvertFrom-Json
+}
+
+$BotToken = $global:config.BotToken; #This token has been revoked.
+$timeoutSecs = $global:config.TimeOutSeconds
 $replyMap = @{ "🌚"="🌝"; "🌝"="🌚"; "→_→"="←_←"; "←_←"="→_→"; "#NSFW"="噫"}
 $global:lastReplyTimes=@{}
+$global:lastMessage=@{}
 
-Function sendRequest([string] $method,[hashtable]$params=@{})
+Function Invoke-TelegramBotAPI([parameter(Mandatory=$true)][string] $Method, [hashtable]$Parameters=@{})
 {
-    return Invoke-RestMethod "https://api.telegram.org/bot$BotToken/$method" -Body $params -Method Post -TimeoutSec 50
+    return Invoke-RestMethod "https://api.telegram.org/bot$BotToken/$Method" -Body $Parameters -Method Post -TimeoutSec 50
 }
 
-Function sendMessage($chatid, $msgtext, $replyto)
+Function Send-TelegramMessage([parameter(Mandatory=$true)]$ChatID, [parameter(Mandatory=$true)][string]$MessageText, $ReplyTo)
 {
-    sendRequest "sendMessage" @{chat_id=$chatid; text=$msgtext; reply_to_message_id=$replyto}
+    $result = Invoke-TelegramBotAPI "sendMessage" @{chat_id=$ChatID; text=$MessageText; reply_to_message_id=$ReplyTo}
 }
 
-Function processReply($msgtext,$chatId)
+Function Process-TextReply([parameter(Mandatory=$true)][string]$MessageText,[parameter(Mandatory=$true)][int]$ChatID)
 {
-    if ($msgtext -and $replyMap.ContainsKey($msgtext))
+    if ($replyMap.ContainsKey($MessageText))
     {
-        if ($chatId -lt 0)
+        if ($ChatID -lt 0)
         {
-            if ($global:lastReplyTimes.ContainsKey($chatId))
+            if ($global:lastReplyTimes.ContainsKey($ChatID))
             {
-                $span = [DateTime]::Now-$global:lastReplyTimes[$chatId];
-                if ($span.TotalSeconds -lt 20)
+                $span = [DateTime]::Now-$global:lastReplyTimes[$ChatID];
+                if ($span.TotalSeconds -lt $global:config.ReplyResetTime)
                 {
                     return
                 }
-                $global:lastReplyTimes[$chatId]=[DateTime]::Now
+                $global:lastReplyTimes[$ChatID]=[DateTime]::Now
             }
             else
             {
-                $global:lastReplyTimes.Add($chatId,[DateTime]::Now)
+                $global:lastReplyTimes.Add($ChatID,[DateTime]::Now)
             }
         }
-    
-        $ret = $replyMap[$msgtext]
-        return $ret
+        return $replyMap[$MessageText]
+    }
+    else
+    {
+        if ($ChatID -lt 0)
+        {
+            if ($global:lastMessage.ContainsKey($ChatID))
+            {
+                if ($global:lastMessage[$ChatID] -eq $MessageText)
+                {
+                    $global:lastMessage[$ChatId]=""
+                    return "$MessageText（复读）"
+                }
+                else
+                {
+                    $global:lastMessage[$ChatId]=$MessageText
+                }
+            }
+            else
+            {
+                $global:lastMessage.Add($ChatID,$MessageText)
+            }
+        }
     }
 }
 
-$ret = sendRequest "getMe" 
+$ret = Invoke-TelegramBotAPI -Method "getMe" 
 if (!$ret.ok)
 {
     echo "Error: $ret"
@@ -51,7 +82,7 @@ echo "BOT ID: $($ret.result.id)"
 $msgoffset=0
 while (1)
 {
-    $ret = sendRequest "getUpdates" @{ timeout=$timeoutSecs; offset=$msgoffset}
+    $ret = Invoke-TelegramBotAPI -Method "getUpdates" -Parameters @{ timeout=$timeoutSecs; offset=$msgoffset}
     if (!$ret.ok)
     {
         echo "Error: $ret"
@@ -71,10 +102,15 @@ while (1)
             $fromId=$message.chat.id
             $text=$message.text
             $msgId=$message.message_id
-            $replymsg = processReply $text $fromId
+            if (!$text)
+            {
+                continue
+            }
+            $replymsg = Process-TextReply -MessageText $text -ChatID $fromId
             if ($replymsg)
             {
-                sendMessage $fromId $replymsg
+                Start-Sleep -Seconds 1 #being more similar to a real person
+                Send-TelegramMessage -ChatID $fromId -MessageText $replymsg
             }
         }
     }
