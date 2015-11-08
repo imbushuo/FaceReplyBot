@@ -8,7 +8,7 @@ else
     $global:config = Get-Content $ConfigFile -Raw | ConvertFrom-Json
 }
 
-$BotToken = $global:config.BotToken; #This token has been revoked.
+$BotToken = $global:config.BotToken;
 $timeoutSecs = $global:config.TimeOutSeconds
 $replyMap = @{ "🌚"="🌝"; "🌝"="🌚"; "→_→"="←_←"; "←_←"="→_→"; "#NSFW"="噫"}
 $global:lastReplyTimes=@{}
@@ -24,7 +24,10 @@ Function Send-TelegramMessage([parameter(Mandatory=$true)]$ChatID, [parameter(Ma
     $result = Invoke-TelegramBotAPI "sendMessage" @{chat_id=$ChatID; text=$MessageText; reply_to_message_id=$ReplyTo}
 }
 
-Function Process-TextReply([parameter(Mandatory=$true)][string]$MessageText,[parameter(Mandatory=$true)][int]$ChatID)
+Function Process-TextReply([parameter(Mandatory=$true)][string]$MessageText,
+                           [parameter(Mandatory=$true)][int]$MessageID,
+                           [parameter(Mandatory=$true)][int]$UserID,
+                           [parameter(Mandatory=$true)][int]$ChatID)
 {
     if ($replyMap.ContainsKey($MessageText))
     {
@@ -52,19 +55,21 @@ Function Process-TextReply([parameter(Mandatory=$true)][string]$MessageText,[par
         {
             if ($global:lastMessage.ContainsKey($ChatID))
             {
-                if ($global:lastMessage[$ChatID] -eq $MessageText)
+                if (($global:lastMessage[$ChatID].text -eq $MessageText) -and($global:lastMessage[$ChatID].user -ne $UserID ))
                 {
-                    $global:lastMessage[$ChatId]=""
-                    return "$MessageText（复读）"
+                    $result = Invoke-TelegramBotAPI -Method "forwardMessage" -Parameters @{chat_id=$ChatID; from_chat_id=$ChatID; message_id=$global:lastMessage[$ChatId].msgid}
+                    $global:lastMessage[$ChatID].text=""
+                    $global:lastMessage[$ChatID].user=0
+                    $global:lastMessage[$ChatID].msgid=0
                 }
                 else
                 {
-                    $global:lastMessage[$ChatId]=$MessageText
+                    $global:lastMessage[$ChatId]=@{user=$UserID;text=$MessageText;msgid=$MessageID }
                 }
             }
             else
             {
-                $global:lastMessage.Add($ChatID,$MessageText)
+                $global:lastMessage.Add($ChatID,@{user=$UserID;text=$MessageText;msgid=$MessageID })
             }
         }
     }
@@ -102,11 +107,12 @@ while (1)
             $fromId=$message.chat.id
             $text=$message.text
             $msgId=$message.message_id
+            $fromUser=$message.from.id
             if (!$text)
             {
                 continue
             }
-            $replymsg = Process-TextReply -MessageText $text -ChatID $fromId
+            $replymsg = Process-TextReply -MessageText $text -ChatID $fromId -MessageID $msgId -UserID $fromUser
             if ($replymsg)
             {
                 Start-Sleep -Seconds 1 #being more similar to a real person
