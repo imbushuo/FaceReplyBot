@@ -25,9 +25,9 @@ Function Send-TelegramMessage([parameter(Mandatory=$true)]$ChatID, [parameter(Ma
 }
 
 Function Process-TextReply([parameter(Mandatory=$true)][string]$MessageText,
-                           [parameter(Mandatory=$true)][int]$MessageID,
-                           [parameter(Mandatory=$true)][int]$UserID,
-                           [parameter(Mandatory=$true)][int]$ChatID)
+                           [parameter(Mandatory=$true)][long]$MessageID,
+                           [parameter(Mandatory=$true)][long]$UserID,
+                           [parameter(Mandatory=$true)][long]$ChatID)
 {
     if ($replyMap.ContainsKey($MessageText))
     {
