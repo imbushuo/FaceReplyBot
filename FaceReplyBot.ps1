@@ -10,7 +10,7 @@ else
 
 $BotToken = $global:config.BotToken;
 $timeoutSecs = $global:config.TimeOutSeconds
-$replyMap = @{ "🌚"="🌝"; "🌝"="🌚"; "→_→"="←_←"; "←_←"="→_→"; "#NSFW"="噫"}
+$replyMap = @{ "🌚"="🌝"; "🌝"="🌚"; "→_→"="←_←"; "←_←"="→_→"; "#NSFW"="噫"; "😂"="😂😂😂"; "😋"="😂😂😂" }
 $global:lastReplyTimes=@{}
 $global:lastMessage=@{}
 
